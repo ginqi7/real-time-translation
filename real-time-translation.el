@@ -57,7 +57,9 @@
 (defun real-time-translation-start ()
   "Start websocket bridge real-time-translation."
   (interactive)
-  (websocket-bridge-app-start "real-time-translation" "/opt/homebrew/bin/python3" real-time-translation-py-path))
+  (websocket-bridge-app-start "real-time-translation"
+                              (executable-find "python3")
+                              real-time-translation-py-path))
 
 (defun real-time-translation-remove-overlays ()
   "Remove overlays."
@@ -86,6 +88,7 @@
                 (gethash line-number real-time-translation-overlays)))
           (when old-ov (delete-overlay old-ov))
           (puthash line-number ov real-time-translation-overlays)
+          (overlay-put ov 'evaporate t)
           (overlay-put
            ov 'before-string
            (propertize
@@ -104,7 +107,8 @@
         (real-time-translation-remove-overlays))
     (progn
       (add-hook 'after-save-hook 'real-time-translation-translate-current-file nil t)
-      (add-hook 'post-command-hook 'real-time-translation-translate-current-line nil t))))
+      (add-hook 'post-command-hook 'real-time-translation-translate-current-line nil t)
+      )))
 
 (defun real-time-translation-translate-current-file ()
   "Real time translate the current file."

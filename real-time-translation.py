@@ -11,6 +11,13 @@ from difflib import Differ
 
 import websocket_bridge_python
 from sexpdata import dumps
+import shutil
+
+import argostranslate.package
+import argostranslate.translate
+
+from_code = "zh"
+to_code = "en"
 
 
 file_map = {}
@@ -30,29 +37,50 @@ def diff_file(file1, file2):
         return diff
     
 async def translate_lines(lines):
-    print(lines)
+    newlines = {}
     for key in lines:
-        import google_translate
-        result = google_translate.translate(lines[key], dst_lang='en')
-        lines[key] ="".join(result["trans"])
-        
-    await run_and_log(f'(real-time-translation-render \'{dumps(lines)})')
+        if not (is_empty_or_whitespace(lines[key])):
+            if is_most_chinese(lines[key]) :
+                from_code = 'zh'
+                to_code = 'en'
+            else:
+                from_code = 'en'
+                to_code = 'zh'                
+
+
+
+            translatedText = argostranslate.translate.translate(lines[key].rstrip('\n'), from_code, to_code)
+            newlines[str(key)] = translatedText
+
+    await run_and_log(f'(real-time-translation-render \'{dumps(newlines)})')
 
 
 async def translate_file(source_file, target_file):
     diff = diff_file(target_file, source_file)
-    await translate_lines(diff)
-    print(diff)
     shutil.copyfile(source_file, target_file)
-
-
+    await translate_lines(diff)
+    
+def is_empty_or_whitespace(s):
+    # If the character is empty or all characters are blank, return True.
+    return not s or s.isspace()
+    
+def is_most_chinese(text):
+    if len(text) == 0:
+        return False
+    chinese_char_pattern = re.compile(r'[\u4e00-\u9fff]')
+    chinese_chars = re.findall(chinese_char_pattern, text)
+    chinese_ratio = len(chinese_chars) / len(text)
+    return chinese_ratio >= 0.6
 
 
 async def translate_diff_file(file_name):
+
     if file_name in file_map:
         await translate_file(file_name, file_map[file_name])
     else:
+
         f = tempfile.NamedTemporaryFile(delete=False, suffix="-" + os.path.basename(file_name))
+        file_map[file_name] = f.name
         await translate_file(file_name, f.name)
 
 
