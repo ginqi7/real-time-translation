@@ -1,10 +1,12 @@
 #+title: Real-time translation
 
 * Abstract
-This is a real-time tool to translate or refine your second language. You can write sentences and check if your expression is correct.
+This is a real-time tool for translating or refining sentences in your second language. You can write sentences and check if your expression is correct.
 
 * Features
-- [x] Real-time transfer one language to another.
-- [x] Real-time refine your sentences
-- [ ] Real-time synchronization of files in two different languages.
-- [ ] Supporting different translation engines.
+- [x] Transfers sentences from one language to another in real time.
+- [x] Refine your sentences in real time
+- [ ] Synchronize files in two different languages in real time.
+- [x] Supports different translation engines.
+  - [[https://github.com/argosopentech/argos-translate][argos-translate]] : Open-source offline translation library written in Python
+  - [[https://github.com/xxnuo/MTranServer][MTranServer]] : End to end, high speed, and privately self-host free version of Google

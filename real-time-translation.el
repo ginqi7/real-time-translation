@@ -38,6 +38,7 @@
 
 
 (require 'websocket-bridge)
+(require 'cl-macs)
 
 (defvar real-time-translation-overlays (make-hash-table))
 
@@ -48,17 +49,32 @@
 
 (defcustom real-time-translation-python-command (executable-find "python3")
   "Python command path for real-time-translation"
+  :type 'string
   :group 'real-time-translation)
 
 (defcustom real-time-translation-target-languages '("en" "zh")
   "real-time-translation target languages"
+  :type 'cons
   :group 'real-time-translation)
 
 (defcustom real-time-translation-refine-p nil
   "Do you allow `real-time-translation` to refine your sentences in the original language?"
+  :type 'boolean
   :group 'real-time-translation)
 
+(defcustom real-time-translation-engine "argos"
+  "The translation engine."
+  :group 'real-time-translation
+  :type '(choice
+          (const :tag "argos" "argos")
+          (const :tag "mtranserver" "mtranserver")))
+;; :options '("argos", "mtranserver"))
 
+
+(defcustom real-time-translation-mtranserver-url "http://localhost:8989/translate"
+  "The url of mtranserver engine."
+  :group 'real-time-translation
+  :type 'string)
 
 (defvar real-time-translation-py-path
   (file-name-concat
@@ -85,29 +101,29 @@
 (defun real-time-translation-render (translations)
   "Render TRANSLATIONS."
 
-  (loop for
-        (key value)
-        on translations by #'cddr
-        when (not (string-empty-p value))
-        do
-        (let* ((line-number
-                (string-to-number (substring (symbol-name key) 1)))
-               (begin
-                (save-excursion
-                  (goto-line line-number)
-                  (line-beginning-position)))
-               (end (+ begin 1))
-               (ov (make-overlay begin end))
-               (old-ov
-                (gethash line-number real-time-translation-overlays)))
-          (when old-ov (delete-overlay old-ov))
-          (puthash line-number ov real-time-translation-overlays)
-          (overlay-put ov 'evaporate t)
-          (overlay-put
-           ov 'before-string
-           (propertize
-            (format "%s\n" value)
-            'face 'dictionary-overlay-translation)))))
+  (cl-loop for
+           (key value)
+           on translations by #'cddr
+           when (not (string-empty-p value))
+           do
+           (let* ((line-number
+                   (string-to-number (substring (symbol-name key) 1)))
+                  (begin
+                   (save-excursion
+                     (goto-line line-number)
+                     (line-beginning-position)))
+                  (end (+ begin 1))
+                  (ov (make-overlay begin end))
+                  (old-ov
+                   (gethash line-number real-time-translation-overlays)))
+             (when old-ov (delete-overlay old-ov))
+             (puthash line-number ov real-time-translation-overlays)
+             (overlay-put ov 'evaporate t)
+             (overlay-put
+              ov 'before-string
+              (propertize
+               (format "%s\n" value)
+               'face 'dictionary-overlay-translation)))))
 
 ;;;###autoload
 (define-minor-mode real-time-translation-mode

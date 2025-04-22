@@ -7,8 +7,7 @@ import shutil
 import tempfile
 from difflib import Differ
 
-import argostranslate.package
-import argostranslate.translate
+
 import websocket_bridge_python
 
 from fast_langdetect import (
@@ -36,8 +35,42 @@ def diff_file(file1, file2):
                 diff[lineNum] = line[2:].strip()
         return diff
 
+async def translate(engine, text, from_code, to_code):
+    if engine == "argos":
+        return await argos_translate(text, from_code, to_code)
+    elif engine == "mtranserver":
+        return await mtranserver_translate(text, from_code, to_code)
+
+async def argos_translate(text, from_code, to_code):
+    import argostranslate.package
+    import argostranslate.translate
+    result = argostranslate.translate.translate(text, from_code, to_code)
+    print(result)
+    return result
+
+async def mtranserver_translate(text, from_code, to_code):
+    import requests
+    global mtranserver_url
+    url = mtranserver_url
+    headers = {"Content-Type": "application/json"}
+    data = {
+        "from": from_code,
+        "to": to_code,
+        "text": text,
+    }
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()
+        result = response.json()
+        return result['result']
+    except requests.exceptions.RequestException as e:
+        print(f"Request Error: {e}")
+        result = None
+
+
+
 async def translate_lines(lines):
-    global target_languages, refine_flag
+    global target_languages, refine_flag, engine
     newlines = {}
     for key in lines:
         text = lines[key].rstrip('\n')
@@ -51,10 +84,10 @@ async def translate_lines(lines):
         else:
             to_code = target_languages[0]
 
-        translatedText = argostranslate.translate.translate(text, from_code, to_code)
+        translatedText = await translate(engine, text, from_code, to_code)
         newline = translatedText
         if refine_flag:
-            refineText = argostranslate.translate.translate(translatedText, to_code, from_code)
+            refineText = await translate(engine, translatedText, to_code, from_code)
             newline += '\n' + refineText
 
         newlines[str(key)] = newline
@@ -112,10 +145,12 @@ async def main():
     await asyncio.gather(init(), bridge.start())
 
 async def init():
-    global target_languages, refine_flag
+    global target_languages, refine_flag, engine, mtranserver_url
     print("init")
     target_languages = await get_emacs_var("real-time-translation-target-languages")
     refine_flag = await get_emacs_var("real-time-translation-refine-p")
+    engine = await get_emacs_var("real-time-translation-engine")
+    mtranserver_url = await get_emacs_var("real-time-translation-mtranserver-url")
 
 
 async def get_emacs_var(var_name: str):
