@@ -42,6 +42,9 @@
 
 (defvar real-time-translation-overlays (make-hash-table))
 
+(defvar real-time-translation-buffer-ids (make-hash-table))
+
+
 (defgroup
   real-time-translation ()
   "Check grammar in buffers by real-time-translation."
@@ -68,13 +71,22 @@
   :type '(choice
           (const :tag "argos" "argos")
           (const :tag "mtranserver" "mtranserver")))
-;; :options '("argos", "mtranserver"))
-
 
 (defcustom real-time-translation-mtranserver-url "http://localhost:8989/translate"
   "The url of mtranserver engine."
   :group 'real-time-translation
   :type 'string)
+
+(defface real-time-translation-default
+  '((t (:inherit default)))
+  "The face for show real-time-translation"
+  :group 'real-time-translation)
+
+(defface real-time-translation-refine
+  '((t (:inherit default)))
+  "The face for show real-time-translation"
+  :group 'real-time-translation)
+
 
 (defvar real-time-translation-py-path
   (file-name-concat
@@ -98,32 +110,56 @@
    real-time-translation-overlays)
   (setq real-time-translation-overlays (make-hash-table)))
 
-(defun real-time-translation-render (translations)
+(defun real-time-translation-render-list (translations)
   "Render TRANSLATIONS."
+  (mapc #'real-time-translation-render translations))
 
-  (cl-loop for
-           (key value)
-           on translations by #'cddr
-           when (not (string-empty-p value))
-           do
-           (let* ((line-number
-                   (string-to-number (substring (symbol-name key) 1)))
-                  (begin
-                   (save-excursion
-                     (goto-line line-number)
-                     (line-beginning-position)))
-                  (end (+ begin 1))
-                  (ov (make-overlay begin end))
-                  (old-ov
-                   (gethash line-number real-time-translation-overlays)))
-             (when old-ov (delete-overlay old-ov))
-             (puthash line-number ov real-time-translation-overlays)
-             (overlay-put ov 'evaporate t)
-             (overlay-put
-              ov 'before-string
-              (propertize
-               (format "%s\n" value)
-               'face 'dictionary-overlay-translation)))))
+
+(defun real-time-translation-render (translation)
+  "Render TRANSLATIONS."
+  (let* ((buffer-id (plist-get translation :buffer-id))
+         (buffer (real-time-translation-get-buffer-by-id buffer-id))
+         (line (plist-get translation :line))
+         (beginning (plist-get translation :beginning))
+         (end (plist-get translation :end))
+         (id (intern (md5 (format "%s:%s" buffer-id line))))
+         (trans (plist-get translation :trans))
+         (refine (plist-get translation :refine))
+         (default-background-color (face-attribute 'default :background))
+         (old-ov (gethash id real-time-translation-overlays))
+         (ov)
+         (placeholder)
+         (before-string))
+    (when old-ov (delete-overlay old-ov))
+    (with-current-buffer buffer
+      (save-excursion
+        (goto-line (1+ line))
+        (beginning-of-line 1)
+        (setq placeholder (buffer-substring (point) beginning))
+        ;; (print (substring-no-properties placeholder))
+        (setq ov (make-overlay (point) (1+ (point))))))
+    (puthash id ov real-time-translation-overlays)
+    (overlay-put ov 'evaporate t)
+    (when trans
+      (setq before-string
+            (concat
+             (propertize placeholder
+                         'face `(:foreground ,default-background-color))
+             (propertize trans
+                         'face 'real-time-translation-default)
+             "\n")))
+    (when refine
+      (setq before-string
+            (concat
+             before-string
+             (propertize placeholder
+                         'face `(:foreground ,default-background-color))
+             (propertize refine
+                         'face 'real-time-translation-default)
+             "\n")))
+
+    (overlay-put ov 'before-string
+                 before-string)))
 
 ;;;###autoload
 (define-minor-mode real-time-translation-mode
@@ -132,12 +168,12 @@
   :global nil
   (if (not real-time-translation-mode)
       (progn
-        (remove-hook 'after-save-hook 'real-time-translation-translate-current-file t)
-        (remove-hook 'post-command-hook 'real-time-translation-translate-current-line t)
+        ;; (remove-hook 'after-save-hook 'real-time-translation-translate-current-file t)
+        (remove-hook 'post-command-hook 'real-time-translation-translate-text t)
         (real-time-translation-remove-overlays))
     (progn
-      (add-hook 'after-save-hook 'real-time-translation-translate-current-file nil t)
-      (add-hook 'post-command-hook 'real-time-translation-translate-current-line nil t))))
+      ;; (add-hook 'after-save-hook 'real-time-translation-translate-current-file nil t)
+      (add-hook 'post-command-hook 'real-time-translation-translate-text nil t))))
 
 
 (defun real-time-translation-translate-current-file ()
@@ -146,12 +182,25 @@
   ( real-time-translation-translate
     (buffer-file-name)))
 
-(defun real-time-translation-translate-current-line ()
+(defun real-time-translation-translate-text ()
   "Real time translate the current file."
   (interactive)
-  (websocket-bridge-call "real-time-translation" "translate-line"
-                         (+ (current-line) 1)
-                         (thing-at-point 'line t)))
+  (let ((buffer-id (real-time-translation-get-buffer-id (current-buffer)))
+        (line (current-line))
+        (beginning (line-beginning-position 1))
+        (end (line-end-position 1))
+        (text))
+    (if (region-active-p)
+        (progn
+          (setq beginning (region-beginning))
+          (setq end (region-end))))
+    (setq text (buffer-substring-no-properties beginning end))
+    (websocket-bridge-call "real-time-translation" "translate-text"
+                           (list :buffer-id buffer-id
+                                 :line line
+                                 :beginning beginning
+                                 :end end
+                                 :text text))))
 
 (defun real-time-translation-translate (file)
   "Real time translate the FILE."
@@ -163,6 +212,18 @@
   (websocket-bridge-app-exit "real-time-translation")
   (real-time-translation-start)
   (websocket-bridge-app-open-buffer "real-time-translation"))
+
+(defun real-time-translation-get-buffer-id (buffer)
+  (let ((id (gethash buffer real-time-translation-buffer-ids)))
+    (unless id
+      (setq id (org-id-uuid))
+      (puthash buffer id real-time-translation-buffer-ids))
+    id))
+
+(defun real-time-translation-get-buffer-by-id (id)
+  (cl-find-if
+   (lambda(key) (equal id (gethash key real-time-translation-buffer-ids)))
+   (hash-table-keys real-time-translation-buffer-ids)))
 
 (provide 'real-time-translation)
 ;;; real-time-translation.el ends here

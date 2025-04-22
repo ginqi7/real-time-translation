@@ -2,7 +2,6 @@
 import asyncio
 import json
 import os
-import re
 import shutil
 import tempfile
 from difflib import Differ
@@ -68,36 +67,36 @@ async def mtranserver_translate(text, from_code, to_code):
         result = None
 
 
+async def translate_text(text_info):
+    print(text_info)
+    text = text_info['text'].strip('\n')
+    if is_empty_or_whitespace(text):
+        return
+    language_info = detect(text)
+    lang = language_info['lang']
+    from_code = lang
+    if target_languages[0] == lang:
+        to_code = target_languages[1]
+    else:
+        to_code = target_languages[0]
 
-async def translate_lines(lines):
-    global target_languages, refine_flag, engine
-    newlines = {}
-    for key in lines:
-        text = lines[key].rstrip('\n')
-        if is_empty_or_whitespace(text):
-            continue
-        language_info = detect(text)
-        lang = language_info['lang']
-        from_code = lang
-        if target_languages[0] == lang:
-            to_code = target_languages[1]
-        else:
-            to_code = target_languages[0]
+    translatedText = await translate(engine, text, from_code, to_code)
+    refineText = None
+    if refine_flag:
+        refineText = await translate(engine, translatedText, to_code, from_code)
 
-        translatedText = await translate(engine, text, from_code, to_code)
-        newline = translatedText
-        if refine_flag:
-            refineText = await translate(engine, translatedText, to_code, from_code)
-            newline += '\n' + refineText
-
-        newlines[str(key)] = newline
-        await run_and_log(f'(real-time-translation-render \'{dumps(newlines)})')
-
+    del text_info['text']
+    if refineText:
+       text_info['refine'] = refineText
+    if translatedText:
+       text_info['trans'] = translatedText
+    if refineText or translatedText:
+        await run_in_emacs("real-time-translation-render-new", text_info)
 
 async def translate_file(source_file, target_file):
     diff = diff_file(target_file, source_file)
     shutil.copyfile(source_file, target_file)
-    await translate_lines(diff)
+    # await translate_lines(diff)
 
 def is_empty_or_whitespace(s):
     # If the character is empty or all characters are blank, return True.
@@ -119,13 +118,10 @@ async def on_message(message):
     try:
         info = json.loads(message)
         cmd = info[1][0].strip()
-        if cmd == "translate":
-            file_name = info[1][1]
-            await translate_diff_file(file_name)
-        elif cmd == "translate-line":
-            line_num = info[1][1]
-            line_str = info[1][2]
-            await translate_lines({line_num: line_str})
+        if cmd == "translate-text":
+            print(info)
+            text_info = info[1][1]
+            await translate_text(text_info)
         else:
             print(f"not fount handler for {cmd}", flush=True)
     except:
@@ -138,6 +134,23 @@ async def on_message(message):
 async def run_and_log(cmd):
     print(cmd, flush=True)
     await bridge.eval_in_emacs(cmd)
+
+def to_lisp_obj(obj):
+    if isinstance(obj, str):
+        return f'\"{obj}\"'
+    if isinstance(obj, int):
+        return f'{obj}'
+    if isinstance(obj, float):
+        return f'{obj}'
+    if isinstance(obj, list):
+        return '(list ' + ' '.join([to_lisp_obj(item) for item in obj]) + ')'
+    if isinstance(obj, dict):
+        return '(list ' + ' '.join([f':{k} {to_lisp_obj(v)}' for (k, v) in obj.items()]) + ')'
+
+
+async def run_in_emacs(func, arg):
+    cmd = f'({func} {to_lisp_obj(arg)})'
+    await run_and_log(cmd)
 
 async def main():
     global bridge
