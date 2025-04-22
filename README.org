@@ -6,6 +6,7 @@ This is a real-time tool for translating or refining sentences in your second la
 * Features
 - [x] Transfers sentences from one language to another in real time.
 - [x] Refine your sentences in real time
+- [x] Automatically detects the source language and translates it into the target language.
 - [ ] Synchronize files in two different languages in real time.
 - [x] Supports different translation engines.
   - [[https://github.com/argosopentech/argos-translate][argos-translate]] : Open-source offline translation library written in Python
