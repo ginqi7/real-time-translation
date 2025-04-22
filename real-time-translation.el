@@ -84,12 +84,12 @@
 
 
 (defface real-time-translation-default
-  '((t (:inherit default)))
+  '((t (:foreground "#81a1c1")))
   "The face for show real-time-translation"
   :group 'real-time-translation)
 
 (defface real-time-translation-refine
-  '((t (:inherit default)))
+  '((t (:foreground "#b48ead")))
   "The face for show real-time-translation"
   :group 'real-time-translation)
 
@@ -166,7 +166,7 @@
              (propertize placeholder
                          'face `(:foreground ,default-background-color))
              (propertize (decode-coding-string (base64-decode-string refine) 'utf-8)
-                         'face 'real-time-translation-default)
+                         'face 'real-time-translation-refine)
              "\n")))
 
     (overlay-put ov 'before-string
