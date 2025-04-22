@@ -5,6 +5,7 @@ import os
 import shutil
 import tempfile
 from difflib import Differ
+import base64
 
 
 import websocket_bridge_python
@@ -87,11 +88,11 @@ async def translate_text(text_info):
 
     del text_info['text']
     if refineText:
-       text_info['refine'] = refineText
+       text_info['refine'] = base64.b64encode(refineText.encode('utf-8')).decode('utf-8')
     if translatedText:
-       text_info['trans'] = translatedText
+       text_info['trans'] = base64.b64encode(translatedText.encode('utf-8')).decode('utf-8')
     if refineText or translatedText:
-        await run_in_emacs("real-time-translation-render-new", text_info)
+        await run_in_emacs("real-time-translation-render", text_info)
 
 async def translate_file(source_file, target_file):
     diff = diff_file(target_file, source_file)

@@ -47,16 +47,16 @@
 
 (defgroup
   real-time-translation ()
-  "Check grammar in buffers by real-time-translation."
+  "Real-time translation."
   :group 'applications)
 
 (defcustom real-time-translation-python-command (executable-find "python3")
-  "Python command path for real-time-translation"
+  "Python Command Path for Real-time Translation"
   :type 'string
   :group 'real-time-translation)
 
 (defcustom real-time-translation-target-languages '("en" "zh")
-  "real-time-translation target languages"
+  "The target languages of Real-time translation"
   :type 'cons
   :group 'real-time-translation)
 
@@ -76,6 +76,12 @@
   "The url of mtranserver engine."
   :group 'real-time-translation
   :type 'string)
+
+(defcustom real-time-translation-oneline-mode nil
+  "Dose it just show a single line translation in the buffer?"
+  :group 'real-time-translation
+  :type 'boolean)
+
 
 (defface real-time-translation-default
   '((t (:inherit default)))
@@ -114,9 +120,8 @@
   "Render TRANSLATIONS."
   (mapc #'real-time-translation-render translations))
 
-
 (defun real-time-translation-render (translation)
-  "Render TRANSLATIONS."
+  "Render TRANSLATION."
   (let* ((buffer-id (plist-get translation :buffer-id))
          (buffer (real-time-translation-get-buffer-by-id buffer-id))
          (line (plist-get translation :line))
@@ -130,31 +135,37 @@
          (ov)
          (placeholder)
          (before-string))
+    ;; Delete the old ov from the current line.
     (when old-ov (delete-overlay old-ov))
+    (when real-time-translation-oneline-mode
+      (real-time-translation-remove-overlays))
     (with-current-buffer buffer
       (save-excursion
         (goto-line (1+ line))
         (beginning-of-line 1)
+        ;; Create an invisible placeholder to align the text.
         (setq placeholder (buffer-substring (point) beginning))
-        ;; (print (substring-no-properties placeholder))
+        ;; Create a new ov.
         (setq ov (make-overlay (point) (1+ (point))))))
     (puthash id ov real-time-translation-overlays)
     (overlay-put ov 'evaporate t)
+    ;; Rendering the translation.
     (when trans
       (setq before-string
             (concat
              (propertize placeholder
                          'face `(:foreground ,default-background-color))
-             (propertize trans
+             (propertize (decode-coding-string (base64-decode-string trans) 'utf-8)
                          'face 'real-time-translation-default)
              "\n")))
+    ;; Rendering the refined sentence.
     (when refine
       (setq before-string
             (concat
              before-string
              (propertize placeholder
                          'face `(:foreground ,default-background-color))
-             (propertize refine
+             (propertize (decode-coding-string (base64-decode-string refine) 'utf-8)
                          'face 'real-time-translation-default)
              "\n")))
 

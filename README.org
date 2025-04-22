@@ -8,6 +8,7 @@ This is a real-time tool for translating or refining sentences in your second la
 - [x] Refine your sentences in real time
 - [x] Automatically detects the source language and translates it into the target language.
 - [ ] Synchronize files in two different languages in real time.
+- [ ] Insert translated or refined text.
 - [x] Supports different translation engines.
   - [[https://github.com/argosopentech/argos-translate][argos-translate]] : Open-source offline translation library written in Python
   - [[https://github.com/xxnuo/MTranServer][MTranServer]] : End to end, high speed, and privately self-host free version of Google
