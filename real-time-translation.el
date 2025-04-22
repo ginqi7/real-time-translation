@@ -46,8 +46,17 @@
   "Check grammar in buffers by real-time-translation."
   :group 'applications)
 
+(defcustom real-time-translation-python-command (executable-find "python3")
+  "Python command path for real-time-translation"
+  :group 'real-time-translation)
+
+(defcustom real-time-translation-target-languages '("en" "zh")
+  "real-time-translation target languages"
+  :group 'real-time-translation)
+
+
 (defvar real-time-translation-py-path
-  (concat
+  (file-name-concat
    (if load-file-name
        (file-name-directory load-file-name)
      (file-name-directory (buffer-file-name)))
@@ -58,7 +67,7 @@
   "Start websocket bridge real-time-translation."
   (interactive)
   (websocket-bridge-app-start "real-time-translation"
-                              (executable-find "python3")
+                              real-time-translation-python-command
                               real-time-translation-py-path))
 
 (defun real-time-translation-remove-overlays ()
@@ -107,8 +116,8 @@
         (real-time-translation-remove-overlays))
     (progn
       (add-hook 'after-save-hook 'real-time-translation-translate-current-file nil t)
-      (add-hook 'post-command-hook 'real-time-translation-translate-current-line nil t)
-      )))
+      (add-hook 'post-command-hook 'real-time-translation-translate-current-line nil t))))
+
 
 (defun real-time-translation-translate-current-file ()
   "Real time translate the current file."

@@ -6,5 +6,5 @@ This is a real-time tool to translate or refine your second language. You can wr
 * Features
 - [x] Real-time transfer one language to another.
 - [x] Real-time refine your sentences
-- [ ] Real-time synchronization of two different language files.
+- [ ] Real-time synchronization of files in two different languages.
 - [ ] Supporting different translation engines.

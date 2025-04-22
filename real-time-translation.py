@@ -5,16 +5,16 @@ import os
 import re
 import shutil
 import tempfile
-from sys import platform
-from threading import Timer
 from difflib import Differ
-
-import websocket_bridge_python
-from sexpdata import dumps
-import shutil
 
 import argostranslate.package
 import argostranslate.translate
+import websocket_bridge_python
+
+from fast_langdetect import (
+    detect,
+)
+from sexpdata import dumps
 
 from_code = "zh"
 to_code = "en"
@@ -35,43 +35,37 @@ def diff_file(file1, file2):
             if code == "+ ":
                 diff[lineNum] = line[2:].strip()
         return diff
-    
+
 async def translate_lines(lines):
+    global target_languages
     newlines = {}
     for key in lines:
-        if not (is_empty_or_whitespace(lines[key])):
-            if is_most_chinese(lines[key]) :
-                from_code = 'zh'
-                to_code = 'en'
-            else:
-                from_code = 'en'
-                to_code = 'zh'                
+        text = lines[key].rstrip('\n')
+        if is_empty_or_whitespace(text):
+            continue
+        language_info = detect(text)
+        lang = language_info['lang']
+        from_code = lang
+        if target_languages[0] == lang:
+            to_code = target_languages[1]
+        else:
+            to_code = target_languages[0]
 
+        translatedText = argostranslate.translate.translate(text, from_code, to_code)
+        refineText = argostranslate.translate.translate(translatedText, to_code, from_code)
 
-
-            translatedText = argostranslate.translate.translate(lines[key].rstrip('\n'), from_code, to_code)
-            newlines[str(key)] = translatedText
-
-    await run_and_log(f'(real-time-translation-render \'{dumps(newlines)})')
+        newlines[str(key)] = f'{translatedText}\n{refineText}'
+        await run_and_log(f'(real-time-translation-render \'{dumps(newlines)})')
 
 
 async def translate_file(source_file, target_file):
     diff = diff_file(target_file, source_file)
     shutil.copyfile(source_file, target_file)
     await translate_lines(diff)
-    
+
 def is_empty_or_whitespace(s):
     # If the character is empty or all characters are blank, return True.
     return not s or s.isspace()
-    
-def is_most_chinese(text):
-    if len(text) == 0:
-        return False
-    chinese_char_pattern = re.compile(r'[\u4e00-\u9fff]')
-    chinese_chars = re.findall(chinese_char_pattern, text)
-    chinese_ratio = len(chinese_chars) / len(text)
-    return chinese_ratio >= 0.6
-
 
 async def translate_diff_file(file_name):
 
@@ -95,7 +89,7 @@ async def on_message(message):
         elif cmd == "translate-line":
             line_num = info[1][1]
             line_str = info[1][2]
-            await translate_lines({line_num: line_str})        
+            await translate_lines({line_num: line_str})
         else:
             print(f"not fount handler for {cmd}", flush=True)
     except:
@@ -115,16 +109,15 @@ async def main():
     await asyncio.gather(init(), bridge.start())
 
 async def init():
+    global target_languages
     print("init")
-    
+    target_languages = await get_emacs_var("real-time-translation-target-languages")
+
 async def get_emacs_var(var_name: str):
     "Get Emacs variable and format it."
     var_value = await bridge.get_emacs_var(var_name)
-    if isinstance(var_value, str):
-        var_value = var_value.strip('"')
+    var_value = json.loads(var_value)
     print(f'{var_name} : {var_value}')
-    if var_value == 'null':
-        return None
     return var_value
-    
+
 asyncio.run(main())
