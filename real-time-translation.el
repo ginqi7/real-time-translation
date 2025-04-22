@@ -54,6 +54,11 @@
   "real-time-translation target languages"
   :group 'real-time-translation)
 
+(defcustom real-time-translation-refine-p nil
+  "Do you allow `real-time-translation` to refine your sentences in the original language?"
+  :group 'real-time-translation)
+
+
 
 (defvar real-time-translation-py-path
   (file-name-concat

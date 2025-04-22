@@ -37,7 +37,7 @@ def diff_file(file1, file2):
         return diff
 
 async def translate_lines(lines):
-    global target_languages
+    global target_languages, refine_flag
     newlines = {}
     for key in lines:
         text = lines[key].rstrip('\n')
@@ -52,9 +52,12 @@ async def translate_lines(lines):
             to_code = target_languages[0]
 
         translatedText = argostranslate.translate.translate(text, from_code, to_code)
-        refineText = argostranslate.translate.translate(translatedText, to_code, from_code)
+        newline = translatedText
+        if refine_flag:
+            refineText = argostranslate.translate.translate(translatedText, to_code, from_code)
+            newline += '\n' + refineText
 
-        newlines[str(key)] = f'{translatedText}\n{refineText}'
+        newlines[str(key)] = newline
         await run_and_log(f'(real-time-translation-render \'{dumps(newlines)})')
 
 
@@ -109,9 +112,11 @@ async def main():
     await asyncio.gather(init(), bridge.start())
 
 async def init():
-    global target_languages
+    global target_languages, refine_flag
     print("init")
     target_languages = await get_emacs_var("real-time-translation-target-languages")
+    refine_flag = await get_emacs_var("real-time-translation-refine-p")
+
 
 async def get_emacs_var(var_name: str):
     "Get Emacs variable and format it."
