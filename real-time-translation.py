@@ -40,6 +40,10 @@ async def translate(engine, text, from_code, to_code):
         return await argos_translate(text, from_code, to_code)
     elif engine == "mtranserver":
         return await mtranserver_translate(text, from_code, to_code)
+    elif engine == "deepl":
+        return await deepl_translate(text, from_code, to_code)
+    else:
+        print(f'{engine} not support.')
 
 async def argos_translate(text, from_code, to_code):
     import argostranslate.package
@@ -67,12 +71,21 @@ async def mtranserver_translate(text, from_code, to_code):
         print(f"Request Error: {e}")
         result = None
 
+async def deepl_translate(text, from_code, to_code):
+    import deepl
+    global deepl_key
+    deepl_client = deepl.DeepLClient(deepl_key)
+    to_code = get_deepl_lang_code(to_code)
+    result = deepl_client.translate_text(text, target_lang=to_code)
+    return result.text
 
 async def translate_text(text_info):
-    print(text_info)
+
     text = text_info['text'].strip('\n')
     if is_empty_or_whitespace(text):
         return
+
+    # Detect source language.
     language_info = detect(text)
     lang = language_info['lang']
     from_code = lang
@@ -80,6 +93,13 @@ async def translate_text(text_info):
         to_code = target_languages[1]
     else:
         to_code = target_languages[0]
+
+    # high speed or high quality
+    engine = high_speed_engine
+
+    if 'high-quality' in text_info and text_info['high-quality']:
+        print("hello")
+        engine = high_quality_engine
 
     translatedText = await translate(engine, text, from_code, to_code)
     refineText = None
@@ -136,7 +156,48 @@ async def run_and_log(cmd):
     print(cmd, flush=True)
     await bridge.eval_in_emacs(cmd)
 
+def get_deepl_lang_code(lang):
+    deepl_lang_map = {
+        "bg": "BG",
+        "cs": "CS",
+        "da": "DA",
+        "de": "DE",
+        "el": "EL",
+        "en": "EN-US",
+        "es": "ES",
+        "et": "ET",
+        "fi": "FI",
+        "fr": "FR",
+        "hu": "HU",
+        "id": "ID",
+        "it": "IT",
+        "ja": "JA",
+        "lt": "LT",
+        "lv": "LV",
+        "nb": "NB",
+        "nl": "NL",
+        "pl": "PL",
+        "pt-br": "PT-BR",
+        "pt-pt": "PT-PT",
+        "pt": "PT-PT",
+        "ro": "RO",
+        "ru": "RU",
+        "sk": "SK",
+        "sl": "SL",
+        "sv": "SV",
+        "tr": "TR",
+        "zh": "ZH",
+        "zh-cn": "ZH",
+    }
+    return deepl_lang_map.get(lang.lower())
+
 def to_lisp_obj(obj):
+    if not obj:
+        return 'nil'
+    if isinstance(obj, bool):
+        if obj:
+            return 't'
+        return 'nil'
     if isinstance(obj, str):
         return f'\"{obj}\"'
     if isinstance(obj, int):
@@ -159,13 +220,14 @@ async def main():
     await asyncio.gather(init(), bridge.start())
 
 async def init():
-    global target_languages, refine_flag, engine, mtranserver_url
+    global target_languages, refine_flag, high_speed_engine, high_quality_engine, mtranserver_url, deepl_key
     print("init")
     target_languages = await get_emacs_var("real-time-translation-target-languages")
     refine_flag = await get_emacs_var("real-time-translation-refine-p")
-    engine = await get_emacs_var("real-time-translation-engine")
+    high_speed_engine = await get_emacs_var("real-time-translation-high-speed-engine")
+    high_quality_engine = await get_emacs_var("real-time-translation-high-quality-engine")
     mtranserver_url = await get_emacs_var("real-time-translation-mtranserver-url")
-
+    deepl_key = await get_emacs_var("real-time-translation-deepl-key")
 
 async def get_emacs_var(var_name: str):
     "Get Emacs variable and format it."

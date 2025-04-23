@@ -65,12 +65,23 @@
   :type 'boolean
   :group 'real-time-translation)
 
-(defcustom real-time-translation-engine "argos"
+(defcustom real-time-translation-high-speed-engine "argos"
   "The translation engine."
   :group 'real-time-translation
   :type '(choice
           (const :tag "argos" "argos")
           (const :tag "mtranserver" "mtranserver")))
+
+(defcustom real-time-translation-high-quality-engine "deepl"
+  "The translation engine."
+  :group 'real-time-translation
+  :type '(choice
+          (const :tag "deepl" "deepl")))
+
+(defcustom real-time-translation-deepl-key ""
+  "The translation engine."
+  :group 'real-time-translation
+  :type 'string)
 
 (defcustom real-time-translation-mtranserver-url "http://localhost:8989/translate"
   "The url of mtranserver engine."
@@ -193,7 +204,7 @@
   ( real-time-translation-translate
     (buffer-file-name)))
 
-(defun real-time-translation-translate-text ()
+(defun real-time-translation-translate-text (&optional high-quality-p)
   "Real time translate the current file."
   (interactive)
   (let ((buffer-id (real-time-translation-get-buffer-id (current-buffer)))
@@ -211,7 +222,9 @@
                                  :line line
                                  :beginning beginning
                                  :end end
-                                 :text text))))
+                                 :text text
+                                 :high-quality high-quality-p))))
+
 
 (defun real-time-translation-translate (file)
   "Real time translate the FILE."
