@@ -36,6 +36,10 @@ def diff_file(file1, file2):
         return diff
 
 async def translate(engine, text, from_code, to_code):
+    cache = cache_translate(text, from_code, to_code)
+    if cache:
+        print('get cache')
+        return cache
     if engine == "argos":
         return await argos_translate(text, from_code, to_code)
     elif engine == "mtranserver":
@@ -49,8 +53,39 @@ async def argos_translate(text, from_code, to_code):
     import argostranslate.package
     import argostranslate.translate
     result = argostranslate.translate.translate(text, from_code, to_code)
-    print(result)
     return result
+
+def cache_translate(text, from_code, to_code):
+    cache_file = get_cache_file()
+    with open(cache_file, "r") as file:
+        data = json.load(file)
+        if text in data and to_code in data[text]:
+            return data[text][to_code]
+    return None
+
+
+def get_cache_file():
+    global cache_directory
+    if not os.path.exists(cache_directory):
+        os.makedirs(cache_directory)
+        print(f'Create cache directory: {cache_directory}')
+    cache_file = os.path.join(cache_directory, 'real-time-translation.json')
+    if not os.path.exists(cache_file):
+        print(f'Create cache file: {cache_file}')
+        with open(cache_file, 'w') as file:
+            json.dump({}, file)
+    return cache_file
+
+
+def cache_translate_put(text, to_code, value):
+    cache_file = get_cache_file()
+    with open(cache_file, "r") as file:
+        data = json.load(file)
+        if text not in data:
+            data[text] = {}
+        data[text][to_code] = value
+    with open(cache_file, "w") as file:
+        json.dump(data, file)
 
 async def mtranserver_translate(text, from_code, to_code):
     import requests
@@ -75,8 +110,9 @@ async def deepl_translate(text, from_code, to_code):
     import deepl
     global deepl_key
     deepl_client = deepl.DeepLClient(deepl_key)
-    to_code = get_deepl_lang_code(to_code)
-    result = deepl_client.translate_text(text, target_lang=to_code)
+    target_lang = get_deepl_lang_code(to_code)
+    result = deepl_client.translate_text(text, target_lang=target_lang)
+    cache_translate_put(text, to_code, result.text)
     return result.text
 
 async def translate_text(text_info):
@@ -98,7 +134,6 @@ async def translate_text(text_info):
     engine = high_speed_engine
 
     if 'high-quality' in text_info and text_info['high-quality']:
-        print("hello")
         engine = high_quality_engine
 
     translatedText = await translate(engine, text, from_code, to_code)
@@ -220,7 +255,7 @@ async def main():
     await asyncio.gather(init(), bridge.start())
 
 async def init():
-    global target_languages, refine_flag, high_speed_engine, high_quality_engine, mtranserver_url, deepl_key
+    global target_languages, refine_flag, high_speed_engine, high_quality_engine, mtranserver_url, deepl_key, cache_directory
     print("init")
     target_languages = await get_emacs_var("real-time-translation-target-languages")
     refine_flag = await get_emacs_var("real-time-translation-refine-p")
@@ -228,6 +263,9 @@ async def init():
     high_quality_engine = await get_emacs_var("real-time-translation-high-quality-engine")
     mtranserver_url = await get_emacs_var("real-time-translation-mtranserver-url")
     deepl_key = await get_emacs_var("real-time-translation-deepl-key")
+    cache_directory = await get_emacs_var("real-time-translation-cache-directory")
+
+
 
 async def get_emacs_var(var_name: str):
     "Get Emacs variable and format it."

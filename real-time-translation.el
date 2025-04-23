@@ -44,6 +44,7 @@
 
 (defvar real-time-translation-buffer-ids (make-hash-table))
 
+(defvar real-time-translation-high-quality-timer nil)
 
 (defgroup
   real-time-translation ()
@@ -92,6 +93,17 @@
   "Dose it just show a single line translation in the buffer?"
   :group 'real-time-translation
   :type 'boolean)
+
+(defcustom real-time-translation-cache-directory
+  (file-name-concat user-emacs-directory ".real-time-translation")
+  "Cache directory."
+  :group 'real-time-translation
+  :type 'string)
+
+(defcustom real-time-translation-high-quality-idle 1
+  "high-quality translation idle."
+  :group 'real-time-translation
+  :type 'number)
 
 
 (defface real-time-translation-default
@@ -191,10 +203,12 @@
   (if (not real-time-translation-mode)
       (progn
         ;; (remove-hook 'after-save-hook 'real-time-translation-translate-current-file t)
+        (real-time-translation-cancel-high-quality-timer)
         (remove-hook 'post-command-hook 'real-time-translation-translate-text t)
         (real-time-translation-remove-overlays))
     (progn
       ;; (add-hook 'after-save-hook 'real-time-translation-translate-current-file nil t)
+      (real-time-translation-create-high-quality-timer)
       (add-hook 'post-command-hook 'real-time-translation-translate-text nil t))))
 
 
@@ -248,6 +262,20 @@
   (cl-find-if
    (lambda(key) (equal id (gethash key real-time-translation-buffer-ids)))
    (hash-table-keys real-time-translation-buffer-ids)))
+
+(defun real-time-translation-create-high-quality-timer ()
+  (interactive)
+  (unless real-time-translation-high-quality-timer
+    (setq real-time-translation-high-quality-timer
+          (run-with-idle-timer real-time-translation-high-quality-idle t #'real-time-translation-translate-text t))))
+
+
+(defun real-time-translation-cancel-high-quality-timer ()
+  (interactive)
+  (when real-time-translation-high-quality-timer
+    (cancel-timer real-time-translation-high-quality-timer)
+    (setq real-time-translation-high-quality-timer nil)))
+
 
 (provide 'real-time-translation)
 ;;; real-time-translation.el ends here
