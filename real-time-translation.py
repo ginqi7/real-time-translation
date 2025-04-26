@@ -1,5 +1,6 @@
 ''' Add translation overlay for unknown words.'''
 import asyncio
+from gc import callbacks
 import json
 import os
 import shutil
@@ -147,7 +148,8 @@ async def translate_text(text_info):
     if translatedText:
        text_info['trans'] = base64.b64encode(translatedText.encode('utf-8')).decode('utf-8')
     if refineText or translatedText:
-        await run_in_emacs("real-time-translation-render", text_info)
+        callback = text_info['callback']
+        await run_in_emacs(callback, text_info)
 
 async def translate_file(source_file, target_file):
     diff = diff_file(target_file, source_file)

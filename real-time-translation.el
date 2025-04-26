@@ -128,9 +128,11 @@
 (defun real-time-translation-start ()
   "Start websocket bridge real-time-translation."
   (interactive)
-  (websocket-bridge-app-start "real-time-translation"
-                              real-time-translation-python-command
-                              real-time-translation-py-path))
+  (websocket-bridge-server-start)
+  (websocket-bridge-app-start
+   "real-time-translation"
+   real-time-translation-python-command
+   real-time-translation-py-path))
 
 (defun real-time-translation-remove-overlays ()
   "Remove overlays."
@@ -138,10 +140,6 @@
    (lambda (key value) (delete-overlay value))
    real-time-translation-overlays)
   (setq real-time-translation-overlays (make-hash-table)))
-
-(defun real-time-translation-render-list (translations)
-  "Render TRANSLATIONS."
-  (mapc #'real-time-translation-render translations))
 
 (defun real-time-translation-render (translation)
   "Render TRANSLATION."
@@ -164,7 +162,7 @@
       (real-time-translation-remove-overlays))
     (with-current-buffer buffer
       (save-excursion
-        (goto-line (1+ line))
+        (goto-line (1+ (or line 0)))
         (beginning-of-line 1)
         ;; Create an invisible placeholder to align the text.
         (setq placeholder (buffer-substring (point) beginning))
@@ -202,24 +200,26 @@
   :global nil
   (if (not real-time-translation-mode)
       (progn
-        ;; (remove-hook 'after-save-hook 'real-time-translation-translate-current-file t)
         (real-time-translation-cancel-high-quality-timer)
-        (remove-hook 'post-command-hook 'real-time-translation-translate-text t)
+        (remove-hook 'post-command-hook 'real-time-translation-translate t)
         (real-time-translation-remove-overlays))
     (progn
-      ;; (add-hook 'after-save-hook 'real-time-translation-translate-current-file nil t)
       (real-time-translation-create-high-quality-timer)
-      (add-hook 'post-command-hook 'real-time-translation-translate-text nil t))))
+      (add-hook 'post-command-hook 'real-time-translation-translate nil t))))
+
+(defun real-time-translation-translate-text (text-info)
+  "Translate text-info.
+:text
+:high-quality
+:callback"
+  (websocket-bridge-call
+   "real-time-translation"
+   "translate-text"
+   text-info))
 
 
-(defun real-time-translation-translate-current-file ()
-  "Real time translate the current file."
-  (interactive)
-  ( real-time-translation-translate
-    (buffer-file-name)))
-
-(defun real-time-translation-translate-text (&optional high-quality-p)
-  "Real time translate the current file."
+(defun real-time-translation-translate (&optional high-quality-p)
+  "Real time translate the current line or selection."
   (interactive)
   (let ((buffer-id (real-time-translation-get-buffer-id (current-buffer)))
         (line (current-line))
@@ -231,18 +231,15 @@
           (setq beginning (region-beginning))
           (setq end (region-end))))
     (setq text (buffer-substring-no-properties beginning end))
-    (websocket-bridge-call "real-time-translation" "translate-text"
-                           (list :buffer-id buffer-id
-                                 :line line
-                                 :beginning beginning
-                                 :end end
-                                 :text text
-                                 :high-quality high-quality-p))))
+    (real-time-translation-translate-text
+     (list :buffer-id buffer-id
+           :line line
+           :beginning beginning
+           :end end
+           :text text
+           :high-quality high-quality-p
+           :callback #'real-time-translation-render))))
 
-
-(defun real-time-translation-translate (file)
-  "Real time translate the FILE."
-  (websocket-bridge-call "real-time-translation" "translate" file))
 
 (defun real-time-translation-restart ()
   "Restart websocket bridge real-time-translation and show process."
@@ -252,6 +249,7 @@
   (websocket-bridge-app-open-buffer "real-time-translation"))
 
 (defun real-time-translation-get-buffer-id (buffer)
+  "Get buffer-id of the BUFFER."
   (let ((id (gethash buffer real-time-translation-buffer-ids)))
     (unless id
       (setq id (org-id-uuid))
@@ -259,18 +257,21 @@
     id))
 
 (defun real-time-translation-get-buffer-by-id (id)
+  "Get buffer by ID."
   (cl-find-if
    (lambda(key) (equal id (gethash key real-time-translation-buffer-ids)))
    (hash-table-keys real-time-translation-buffer-ids)))
 
 (defun real-time-translation-create-high-quality-timer ()
+  "Create a timer for high-quality translation."
   (interactive)
   (unless real-time-translation-high-quality-timer
     (setq real-time-translation-high-quality-timer
-          (run-with-idle-timer real-time-translation-high-quality-idle t #'real-time-translation-translate-text t))))
+          (run-with-idle-timer real-time-translation-high-quality-idle t #'real-time-translation-translate t))))
 
 
 (defun real-time-translation-cancel-high-quality-timer ()
+  "Cancel a timer for high-quality translation."
   (interactive)
   (when real-time-translation-high-quality-timer
     (cancel-timer real-time-translation-high-quality-timer)
