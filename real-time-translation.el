@@ -141,6 +141,9 @@
    real-time-translation-overlays)
   (setq real-time-translation-overlays (make-hash-table)))
 
+(defun real-time-translation-decode-str (str)
+  (when str (decode-coding-string (base64-decode-string str) 'utf-8)))
+
 (defun real-time-translation-render (translation)
   "Render TRANSLATION."
   (let* ((buffer-id (plist-get translation :buffer-id))
@@ -176,7 +179,7 @@
             (concat
              (propertize placeholder
                          'face `(:foreground ,default-background-color))
-             (propertize (decode-coding-string (base64-decode-string trans) 'utf-8)
+             (propertize (real-time-translation-decode-str trans)
                          'face 'real-time-translation-default)
              "\n")))
     ;; Rendering the refined sentence.
@@ -186,7 +189,7 @@
              before-string
              (propertize placeholder
                          'face `(:foreground ,default-background-color))
-             (propertize (decode-coding-string (base64-decode-string refine) 'utf-8)
+             (propertize (real-time-translation-decode-str refine)
                          'face 'real-time-translation-refine)
              "\n")))
 
